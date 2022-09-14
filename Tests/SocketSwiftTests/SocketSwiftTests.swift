@@ -12,53 +12,6 @@ import Dispatch
 
 class SocketSwiftTests: XCTestCase {
 
-    #if os(Linux)
-    override class func setUp() {
-        super.setUp()
-        try! TLS.initialize()
-    }
-    #endif
-    
-    func testClientReadWriteTLSWithGoogle() {
-        let socket = try! Socket(.inet)
-        let addr = try! socket.addresses(for: "google.com", port: 443).first!
-        try! socket.connect(address: addr)
-        try! socket.startTls(TLS.Configuration(peer: "google.com"))
-        try! socket.write("GET / HTTP/1.1\r\n\r\n".bytes)
-        AssertReadStringEqual(socket: socket, string: "HTTP/1.1 ")
-    }
-    
-    func testClientServerReadWriteTLS() {
-        let server = try! Socket.tcpListening(port: 4443)
-        
-        DispatchQueue(label: "").async {
-            var tls = TLS.Configuration()
-
-            #if !os(Linux)
-            let file = URL(string: #file)!.appendingPathComponent("../../Socket.swift.pfx").standardized
-                tls.certificate = TLS.importCert(at: file, password: "orkhan1234")
-            #else
-                let file = URL(string: #file)!.appendingPathComponent("../../Socket.swift").standardized
-                tls.certificate = TLS.importCert(at: file.appendingPathExtension("csr"),
-                                                 withKey: file.appendingPathExtension("key"),
-                                                 password: nil)
-            #endif
-            let writableClient = try! server.accept()
-            try! writableClient.startTls(tls)
-            AssertReadStringEqual(socket: writableClient, string: "Hello from client")
-            try! writableClient.write("Hello from server".bytes)
-            writableClient.close()
-        }
-        
-        let client = try! Socket(.inet)
-        try! client.connect(port: 4443)
-        try! client.startTls(.init(peer: "www.biatoms.com", allowSelfSigned: true))
-        try! client.write("Hello from client".bytes)
-        AssertReadStringEqual(socket: client, string: "Hello from server")
-        client.close()
-        server.close()
-    }
-    
     func testClientServerReadWrite() {
         let server = try! Socket.tcpListening(port: 8090)
         
